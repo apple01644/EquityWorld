@@ -3,7 +3,7 @@ import datetime
 import math
 import random
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Union, List
 
 import requests
 
@@ -91,19 +91,23 @@ class ChartManager:
                 eq_base.price = int(math.ceil(eq_base.yesterday_price * (1 - .3)))
                 eq_base.state = EquityState.price_min_limit
 
-    def sync(self):
+    @staticmethod
+    def assign_remote(path: str, value: Union[str, Dict, List, float, int]):
         base_url = 'https://equityworld-5c018-default-rtdb.asia-southeast1.firebasedatabase.app'
         res = requests.put(
-            f'{base_url}/main.json',
-            json={
-                'crdt': self.crdt,
-                'equity_logs': {crdt: {
-                    k: eq_base.json() for k, eq_base in enumerate(eq_bases.values())
-                } for crdt, eq_bases in self.equity_logs.items()},
-                'equity_bases': {k: eq_base.json() for k, eq_base in enumerate(self.equity_bases.values())}
-            }
+            f'{base_url}/{path}.json',
+            json=value
         )
         assert res.status_code == 200, res.status_code
+
+    def sync(self):
+        self.assign_remote('crdt', self.crdt)
+        self.assign_remote(
+            f'logs/{self.crdt}', {
+                k: eq_base.json() for k, eq_base in enumerate(self.equity_logs[self.crdt].values())
+            }
+        )
+        self.assign_remote('equity_bases',  {k: eq_base.json() for k, eq_base in enumerate(self.equity_bases.values())})
 
     def loop(self):
         self.virtual_date += datetime.timedelta(days=1)
